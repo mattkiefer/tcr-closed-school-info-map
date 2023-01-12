@@ -1,0 +1,676 @@
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+<style>
+
+body, svg {
+           font-family : 'Open Sans', sans-serif;
+          }
+
+#container{
+           text-align : center;
+           width      : 320px;
+}
+
+#intro {
+        text-align : left;
+        font-size  : 15px;
+        margin-bottom: -20px;
+       }
+
+svg { 
+     text-align: center;
+    }
+
+#picker {
+         width: 310px;
+         text-align: left;
+         padding-left: 5px;
+         padding-right: 5px;
+        }
+
+#picker li {
+         list-style   : none;
+         border-radius: 4px;
+         display      : inline-block;
+         font-size    : 14px;
+         font-weight  : bold;
+         color        : #FFFFFF;  
+         margin       : 10px;
+         //border-style : solid;
+         //border-width : 2px;
+         //border-color : #CCCCCC;
+         padding-left   : 7px;    
+         padding-right  : 7px;    
+         padding-top    : 9px;
+         padding-bottom : 9px;
+         background-color: #BBBBBB;
+}
+
+#legend {
+         margin-bottom : -15px;
+        }
+
+#legend_hed, #legend_subhed {
+                             text-align  : left;
+                             margin-left : 12px;
+                            }
+
+#legend_hed { 
+             font-weight : bold;
+             margin-top  : -12px;
+            }
+
+#legend_subhed {
+                text-align : left;
+                margin-top : -15px;
+                font-size  : 12px;
+                height     : 25px;
+               }
+
+#legend_item_list, #school_legend_item_list {
+                   list-style : none;
+                  }
+
+#school_legend_item_list {
+                   margin-top: -10px;
+                  }
+
+.legend_item, .school_legend_item {
+              display      : inline-block;
+              padding-left : 8px;
+              padding-right : 8px;
+              padding-top : 2px;
+}
+
+.legend_square {
+                height  : 12px;
+                width   : 12px; 
+                display : inline-block;
+                margin-right: 5px;
+}
+
+.legend_label {
+               font-size : 15px;
+              }
+
+.school_legend_label { 
+               font-size : 12px;
+              }
+
+#chatterbox {
+             text-align    : left;
+             padding-left  : 10px;
+             padding-right : 10px;
+             font-size     : 15px;
+             margin-top    : -20px;
+}
+
+
+.schools-repurposed {
+                      fill: #666666;
+                     }
+
+.schools-not-repurposed {
+                 fill: #EEEEEE;
+                 stroke-width: 1px;
+                 stroke: #111111
+                }
+
+#label-repurposed {
+             background: #666666;
+             display: inline-block;
+             height: 10px;
+             width: 10px;
+             border-radius: 10px;
+             margin-right: 3px;
+}
+
+#label-not-repurposed {
+             background: #EEEEEE;
+             display: inline-block;
+             height: 9px;
+             width: 9px;
+             border-color: #111111;
+             border-width: 1px;
+             border-style: solid;
+             border-radius: 10px;
+             margin-right: 3px;
+}
+
+
+#sources {
+        text-align : left;
+        font-size  : 12px;
+       }
+
+</style>
+</head>
+<body>
+<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="https://d3js.org/topojson.v1.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script>
+
+// testing or prod?
+deploy = true;
+if (deploy == true) {
+    data_file_uri = '/data.geojson'
+    school_file_uri = 'https://s3.amazonaws.com/projects.chicagoreporter.com/graphics/schoolmap/geo_schools.csv'
+} else {
+    data_file_uri = 'viz_data/data.geojson'
+    school_file_uri = 'viz_data/geo_schools.csv'
+}
+
+/*
+*
+* presentation metadata (e.g. map color schemes) for each dataset
+*
+*/
+
+var data_configs = {
+                    /*
+                    'example': {
+                                'properties'    : {string} key to look up json data 
+                                'button_name'   : {string} how to present the toggle switch
+                                'domain_type'   : {string} ordinal or quantize
+                                'scale_range'   : {array} the range of values (ordinal: array, quantize: min/max)
+                                'color_palette' : {array} from colorbrewer 
+                               }
+                    ,
+                    */
+                    'default':       {
+                                      'properties'    : 'default',
+                                      'data_type'     : null,
+                                      'button_name'   : null,
+                                      'domain_type'   : null,
+                                      'scale_range'   : null,
+                                      'color_palette' : null,
+                                      'html_id'       : 'default',
+                                      'hed'           : null,
+                                      'subhed'        : null,
+                                      'chatter'       : null,
+                                     },
+                    'race'   :       {
+                                      'properties'    : 'racial_majority',
+                                      'data_type'     : null,
+                                      'button_name'   : 'Race',
+                                      'domain_type'   : 'ordinal',
+                                      'scale_range'   : ['Black','White','Hispanic','Mixed'],
+                                      'color_palette' : ['#fbb4ae','#b3cde3','#ccebc5','#decbe4'],
+                                      'html_id'       : 'race',
+                                      'hed'           : 'Majority',
+                                      'subhed'        : 'Population 50 percent or more of one race; mixed indicates no majority race',
+                                      'chatter'       : 'Following a trend in New York City, Philadelphia and elsewhere, black communities are most affected by public school closures. Three years after Chicago’s mass closures, black neighborhoods are still stuck with the most vacant schools, with Austin and West Englewood at the top of the list.'
+                                     },
+                    'hs'     :       {
+                                      'properties'    : 'hs_diploma_or_less',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Education',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["rgb(186,228,179)","rgb(116,196,118)", "rgb(49,163,84)","rgb(0,109,44)"],
+                                      'html_id'       : 'hs',
+                                      'hed'           : 'No college',
+                                      'subhed'        : 'Percent of residents with only high school diploma, GED or less',
+                                      'chatter'       : 'Parents with less education are often the most eager to make sure their children have access to good schools. Communities in which adults often lack even a high school diploma, however, lost the most schools and end up stuck with vacant buildings.',
+                                     },
+                    'unemployment' : {
+                                      'properties'    : 'unemployment',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Unemployment',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#b3cde3","#8c96c6","#8856a7","#810f7c"],
+                                      'html_id'       : 'unemployment',
+                                      'hed'           : 'Unemployment',
+                                      'subhed'        : 'Percent of civilian workforce reported as unemployed between 2010 and 2014',
+                                      'chatter'       : 'High unemployment is an economic burden on black communities that were hit hardest by school closures. Chicago’s black unemployment rate of 14.7 percent drives the statewide rate, which is among the highest in the nation.',
+                                     },
+                    'vacancy'      : {
+                                      'properties'    : 'vacancy',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Vacancies',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#bdd7e7","#6baed6","#3182bd","#08519c"],
+                                      'html_id'       : 'vacancy',
+                                      'hed'           : 'Vacant homes',
+                                      'subhed'        : 'Share of housing stock reported vacant 2010-2014',
+                                      'chatter'       : 'Community activists pointed out in 2013 that black communities were already overburdened with abandoned homes and buildings and didn’t need to add shuttered schools to the mix. That warning has materialized, especially in Englewood and West Garfield Park, where residential vacancies are highest.',
+                                     },
+                    'poverty'      : {
+                                      'properties'    : 'poverty',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Poverty',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#d7b5d8","#df65b0","#dd1c77","#980043"],
+                                      'html_id'       : 'poverty',
+                                      'hed'           : 'Poverty',
+                                      'subhed'        : 'Population living below federal poverty line',
+                                      'chatter'       : 'Communities with high poverty rates lost the most schools—and the stability and resources those schools could bring to help families and children break out of poverty.',
+                                     },
+                    'property'     : {
+                                      'properties'    : 'property',
+                                      'data_type'     : null,
+                                      'button_name'   : 'Property crime',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#fdbe85","#fd8d3c","#e6550d","#a63603"],
+                                      'html_id'       : 'property',
+                                      'hed'           : 'Per-capita property crime',
+                                      'subhed'        : 'Includes thefts, burglaries, vandalism, etc. per 100,000 residents, from September 2015 through August 2016',
+                                      'chatter'       : 'Vandalism, theft and similar crimes are far more common in communities with still-vacant closed schools—which have in some cases become magnets for more property crime.',
+                                     },
+                    'violent'      : {
+                                      'properties'    : 'violent',
+                                      'data_type'     : null,
+                                      'button_name'   : 'Violent crime',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#fcae91","#fb6a4a","#de2d26","#a50f15"],
+                                      'html_id'       : 'violent',
+                                      'hed'           : 'Per-capita violent crime',
+                                      'subhed'        : 'Includes batteries, robberies, murders, etc. per 100,000 residents, from September 2015 through August 2016',
+                                      'chatter'       : 'Shootings and other violent crimes are a heavy burden in black and brown communities where schools remain vacant.',
+                                     }
+}
+
+
+school_types = [
+                {'label': 'Repurposed school', 'id': 'label-repurposed'},
+                {'label': 'Not repurposed', 'id': 'label-not-repurposed'},
+               ]
+
+var intro_text = "<strong>Explore the demographics of communities affected by the 2013 school closings.</strong>"
+
+
+/*
+*
+* drawing map on svg
+*
+*/
+
+var width = 320
+    height = 530
+
+var container = d3.select("body")
+                  .append("div")
+                  .attr({
+                         id : "container",
+                       })
+
+var intro = d3.select("#container")
+              .append("div")
+              .attr({
+                     id : "intro",
+                   })
+              .html(intro_text)
+
+// set up the list of demographic pickers
+var picker = d3.select("#container")
+               .append("ul")
+               .attr({
+                      id : "picker",
+                    })
+
+
+// set up legend
+var make_legend = function() {
+    // build legend and headers
+    var legend_element     = d3.select("#container").append("div")
+                                             .attr({
+                                                    id : "legend",
+                                                    x  : x_coord,
+                                                    y  : y_coord,
+                                                  }) 
+
+    var legend_hed = legend_element.append("p")
+                                   .attr({ 
+                                          id : "legend_hed",
+                                        })
+
+    var legend_subhed = legend_element.append("p")
+                                   .attr({ 
+                                          id : "legend_subhed",
+                                        })
+    
+    var legend_item_list = legend_element.append("ul")
+                                         .attr({
+                                              id : "legend_item_list"
+                                            })
+
+    var school_legend_item_list = legend_element.append("ul")
+                                               .attr({
+                                                      id : "school_legend_item_list"
+                                                    })
+}
+
+
+var switch_legend = function(color,config,type){
+
+    // set up name, color palette, labels, position    
+    var name           = config['button_name']
+    var palette        = config['color_palette']
+    var labels         = config['scale_range']
+    var box_dimensions = { 'height': 10, 'width': 10 }
+
+    // remove old stuff
+    d3.selectAll(".legend_label").remove()
+    d3.selectAll(".legend_square").remove()
+    d3.selectAll(".legend_item").remove()
+
+    var legend_element          = d3.select("#legend") 
+    var legend_hed              = d3.select("#legend_hed")
+    var legend_subhed           = d3.select("#legend_subhed")
+    var legend_item_list        = d3.select("#legend_item_list")
+    var school_legend_item_list = d3.select("#school_legend_item_list")
+
+    legend_hed.text(config['hed'])
+    legend_subhed.text(config['subhed'])
+
+    
+    // build data: {'color':'value_range'}
+    var data = {'hed':'hed','subhed':'subhed','items':[]}
+    for (i=0;i<palette.length;i++){
+        datum            = {}
+        datum['shade']   = palette[i]
+        if (type == 'ordinal'){
+            // labels are predefined text so go get them
+            var range = labels[i]
+        } else {
+            // labels are derived by quantized intervals
+            var range = color.invertExtent(datum['shade'])
+            if (config['data_type'] == 'pct') { range = percentify(range) } 
+            else { range = rangify(range) } 
+        }
+        datum['range']   = range
+        datum['y']       = y_coord
+        y_coord          = y_coord + 20
+        datum['x']       = x_coord
+        var height       = box_dimensions['height']
+        var width        = box_dimensions['width']  
+        data.items.push(datum)
+    }
+
+    var legend_items = legend_item_list.selectAll("li")
+        .data(data.items)
+        .enter()
+        .append("li")
+        .attr({
+               class : "legend_item",
+             })
+
+    var school_legend_items = school_legend_item_list.selectAll("li")
+        .data(school_types)
+        .enter()
+        .append("li")
+        .attr({
+               class : "school_legend_item",
+             })
+
+    var legend_squares = legend_items.insert("span")
+                                     .attr({
+                                            "class" : "legend_square"
+                                          })
+
+    var school_legend_squares = school_legend_items.insert("span")
+                                     .attr({
+                                            "id" : function(d) {return d.id}
+                                          })
+
+    var legend_labels = legend_items.insert("span")
+                                    .attr({
+                                           "class" : "legend_label"
+                                         })
+
+    var school_legend_labels = school_legend_items.insert("span")
+                                    .attr({
+                                            "class" : "school_legend_label"
+                                         })
+
+    var square_attributes = legend_squares.attr({
+                                                 //style : function(d) { return d.shade} +";",
+                                                 style              : function(d) { return "background-color:" + d.shade + ";"},
+                                                 height             : height,
+                                                 width              : width,
+    })
+
+    var labels_text = legend_labels.text(function(d){return d.range})
+    
+    var school_labels_text = school_legend_labels.text(function(d){return d.label})
+    
+/*
+
+    var legend_squares = legend_items.select("div")
+                                     .data(data.items)
+                                     .enter()
+                                     .append("div")
+                                     .attr({
+                                            class : "legend_squares"
+                                          })
+    /*
+
+    var square_attributes = squares.attr({
+        class      : 'legend_label',
+        background : function(d) { return d.shade},
+        height     : height,
+        width      : width,
+    })
+    
+    var labels = legend_element.selectAll("#label")
+        .data(data.items)
+        .enter()
+        .append("text")
+        .attr("id","label")
+
+    var label_attributes = labels.attr({
+        class       : 'legend_label',
+        y           : function(d) { return d.y + height},
+        x           : x_coord + 20,
+        'font-size' : '10px'
+    })
+
+    var labels_text = labels.text(function(d){return d.range})
+    
+*/
+}
+
+
+// set up the chatter
+var chatter_box = function() {
+                              d3.select("#container")
+                                .append("div")
+                                .attr({
+                                       id     : "chatterbox",
+                                       //height : 200,
+                                       width  : 300,
+                                })
+}
+
+
+make_legend()
+
+var chatter = function() {
+                          d3.select("#chatterbox")
+                            .append("p")
+}
+
+
+// draw the svg
+
+var svg = d3.select("#container").append("svg")
+.attr({
+       width  : width,
+       height : height,
+     })    
+
+var projection = d3.geo.mercator()
+    .center([-87.36, 41.84 ])
+    .scale([width*175])
+
+var path = d3.geo.path().projection(projection)
+
+var default_config = data_configs['race']
+var default_picker_color  = default_config['color_palette'][default_config['color_palette'].length-1]
+
+var default_color = '#AAAAAA'
+
+var demo_switcher = function(config) {
+    config['button_color'] = config['color_palette'][config['color_palette'].length-1]
+    
+    // fill colors     
+    d3.selectAll("#picker li")
+      .attr({
+             style: "background-color: " + default_color + ";",
+           })
+    d3.select('#' + config['html_id'])
+      .attr({
+             style: "background-color:" + config['button_color'] + ";", 
+           })
+
+    if (config['domain_type'] == 'ordinal') {
+        type = 'ordinal'
+        color = d3.scale.ordinal()
+        color.domain([config['scale_range']])
+    } else {
+        type = 'quantize'
+        color = d3.scale.quantize()
+        min = d3.min(comm_areas, function(ca) {return ca.properties[config.properties]})
+        max = d3.max(comm_areas, function(ca) {return ca.properties[config.properties]})
+        config['scale_range'] = ([min,max])
+    }
+    color.domain(config['scale_range'])
+    // add colors
+    color.range(config['color_palette'])
+    svg.selectAll(".cas").attr("fill", function(d) {  return color(d.properties[config.properties]) })
+    //make_legend(color,config,type)
+    switch_legend(color,config,type)
+    //swap chatter
+    d3.select("#chatterbox").text(config['chatter'])
+}
+
+
+
+var map = d3.json(data_file_uri, function(json) {
+//var map = d3.json("viz_data/data.topojson", function(json) {
+    // get data and shapes
+    comm_areas = json.features
+    //comm_areas = topojson.feature(json, json.objects.data.geometries)
+ 
+    
+    // default map
+    svg.selectAll("path")
+    .data(comm_areas)
+    .enter()
+    .append("path")
+    .attr("d",path) //comment out this line to speed up processing for testing
+    .attr("class","cas")
+    .attr("fill", default_color)
+  
+    // TODO: figure out how to handle default configs 
+    config = default_config
+    demo_switcher(config)
+   
+    // load switches and click events from var data_configs
+    for (config_name in data_configs) {
+        if (config_name != 'default') {
+            var this_config = data_configs[config_name]
+            button_name = this_config['button_name']
+            this_config['button_color'] = this_config['color_palette'][this_config['color_palette'].length-1]
+            // instantiate the toggle switches
+            d3.select("#picker")
+                .append("li")
+                .html(button_name)
+                .attr({
+                       id    : config_name,
+                       style : "border-color:" + this_config['button_color'] + ";", 
+                     })
+                // add onclicks, set global config
+                .on("click",function() {
+                    config = data_configs[this.id]
+                    // handle ordinal (text) vs quantize (numerical) choropleths 
+                    if (! config) {
+                        // but first check if we have a dataset selected
+                        // ... and if not, pass
+                    } else {
+                        demo_switcher(config)
+                    }
+                })
+                //.on("click",function(){d3.select("#chatter").text("bar")})
+        }
+    }    
+    // color that default button ... hack!
+    d3.select("#" + default_config['html_id'])
+      .attr("style","background-color:" + default_picker_color + ";")
+
+
+
+    /*
+    *
+    * put the schools on 
+    *
+    */
+    var schools = d3.csv(school_file_uri, function(csv) {
+        svg.selectAll("circle")
+        .data(csv)
+        .enter()
+        .append("circle")
+        .attr("cx", function(d) {return projection([d.lon,d.lat])[0]}) 
+        .attr("cy", function(d) {return projection([d.lon,d.lat])[1]})
+        .attr("r", "5px")
+        .attr("class","schools")
+        .attr("class", function(d) { return school_fill(d['Repurposed?'])}) // TODO: fill color based on repurpose
+        }
+    )
+
+})
+
+var school_fill = function(repurpose) {
+//
+    if (repurpose == 'yes') {
+        return "schools-repurposed"} 
+    else {
+        return "schools-not-repurposed"}
+}
+
+
+
+
+/*
+*
+* make a map legend
+*
+*/ 
+
+var legend_coordinates = { 'x': 50, 'y': 55 }
+var x_coord        = legend_coordinates['x']
+var y_coord        = legend_coordinates['y'] + 20
+
+var percentify = function(tuple) {
+    min          = Math.round(tuple[0]*100)
+    max          = Math.round(tuple[1]*100)
+    range_string = min + "%-" + max + "%" 
+    return range_string
+}
+
+
+var rangify = function(tuple) {
+    return Math.round(tuple[0]).toLocaleString() + '-' + Math.round(tuple[1]).toLocaleString()
+}
+
+chatter_box()
+
+
+    source_text = "<hr />Race, education, home vacancy and poverty data compiled from 2014 American Community Survey 5-year data. Crime records reported by Chicago Police Department between September 2015 through August 2016."
+
+var sources = container.append("div")
+                       .attr({
+                              id : "sources"
+                            })
+                       .html(source_text)
+
+</script>
+

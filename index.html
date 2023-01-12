@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<!-- saved from url=(0083)https://s3.amazonaws.com/projects.chicagoreporter.com/graphics/schoolmap/index.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<style>
+
+body, svg {
+           font-family : 'Open Sans', sans-serif;
+          }
+
+#container{
+           text-align : center;
+           width      : 320px;
+}
+
+#intro {
+        text-align : left;
+        font-size  : 15px;
+        margin-bottom: -20px;
+       }
+
+svg { 
+     text-align: center;
+    }
+
+#picker {
+         width: 310px;
+         text-align: left;
+         padding-left: 5px;
+         padding-right: 5px;
+        }
+
+#picker li {
+         list-style   : none;
+         border-radius: 4px;
+         display      : inline-block;
+         font-size    : 14px;
+         font-weight  : bold;
+         color        : #FFFFFF;  
+         margin       : 10px;
+         //border-style : solid;
+         //border-width : 2px;
+         //border-color : #CCCCCC;
+         padding-left   : 7px;    
+         padding-right  : 7px;    
+         padding-top    : 9px;
+         padding-bottom : 9px;
+         background-color: #BBBBBB;
+}
+
+#legend {
+         margin-bottom : -15px;
+        }
+
+#legend_hed, #legend_subhed {
+                             text-align  : left;
+                             margin-left : 12px;
+                            }
+
+#legend_hed { 
+             font-weight : bold;
+             margin-top  : -12px;
+            }
+
+#legend_subhed {
+                text-align : left;
+                margin-top : -15px;
+                font-size  : 12px;
+                height     : 25px;
+               }
+
+#legend_item_list, #school_legend_item_list {
+                   list-style : none;
+                  }
+
+#school_legend_item_list {
+                   margin-top: -10px;
+                  }
+
+.legend_item, .school_legend_item {
+              display      : inline-block;
+              padding-left : 8px;
+              padding-right : 8px;
+              padding-top : 2px;
+}
+
+.legend_square {
+                height  : 12px;
+                width   : 12px; 
+                display : inline-block;
+                margin-right: 5px;
+}
+
+.legend_label {
+               font-size : 15px;
+              }
+
+.school_legend_label { 
+               font-size : 12px;
+              }
+
+#chatterbox {
+             text-align    : left;
+             padding-left  : 10px;
+             padding-right : 10px;
+             font-size     : 15px;
+             margin-top    : -20px;
+}
+
+
+.schools-repurposed {
+                      fill: #666666;
+                     }
+
+.schools-not-repurposed {
+                 fill: #EEEEEE;
+                 stroke-width: 1px;
+                 stroke: #111111
+                }
+
+#label-repurposed {
+             background: #666666;
+             display: inline-block;
+             height: 10px;
+             width: 10px;
+             border-radius: 10px;
+             margin-right: 3px;
+}
+
+#label-not-repurposed {
+             background: #EEEEEE;
+             display: inline-block;
+             height: 9px;
+             width: 9px;
+             border-color: #111111;
+             border-width: 1px;
+             border-style: solid;
+             border-radius: 10px;
+             margin-right: 3px;
+}
+
+
+#sources {
+        text-align : left;
+        font-size  : 12px;
+       }
+
+</style>
+</head>
+<body>
+<script src="./index_files/d3.v3.min.js" charset="utf-8"></script>
+<script src="./index_files/topojson.v1.min.js"></script>
+<script src="./index_files/jquery.min.js"></script>
+<script>
+
+// testing or prod?
+deploy = true;
+if (deploy == true) {
+    data_file_uri = 'https://s3.amazonaws.com/projects.chicagoreporter.com/graphics/schoolmap/data.geojson'
+    school_file_uri = 'https://s3.amazonaws.com/projects.chicagoreporter.com/graphics/schoolmap/geo_schools.csv'
+} else {
+    data_file_uri = 'viz_data/data.geojson'
+    school_file_uri = 'viz_data/geo_schools.csv'
+}
+
+/*
+*
+* presentation metadata (e.g. map color schemes) for each dataset
+*
+*/
+
+var data_configs = {
+                    /*
+                    'example': {
+                                'properties'    : {string} key to look up json data 
+                                'button_name'   : {string} how to present the toggle switch
+                                'domain_type'   : {string} ordinal or quantize
+                                'scale_range'   : {array} the range of values (ordinal: array, quantize: min/max)
+                                'color_palette' : {array} from colorbrewer 
+                               }
+                    ,
+                    */
+                    'default':       {
+                                      'properties'    : 'default',
+                                      'data_type'     : null,
+                                      'button_name'   : null,
+                                      'domain_type'   : null,
+                                      'scale_range'   : null,
+                                      'color_palette' : null,
+                                      'html_id'       : 'default',
+                                      'hed'           : null,
+                                      'subhed'        : null,
+                                      'chatter'       : null,
+                                     },
+                    'race'   :       {
+                                      'properties'    : 'racial_majority',
+                                      'data_type'     : null,
+                                      'button_name'   : 'Race',
+                                      'domain_type'   : 'ordinal',
+                                      'scale_range'   : ['Black','White','Hispanic','Mixed'],
+                                      'color_palette' : ['#fbb4ae','#b3cde3','#ccebc5','#decbe4'],
+                                      'html_id'       : 'race',
+                                      'hed'           : 'Majority',
+                                      'subhed'        : 'Population 50 percent or more of one race; mixed indicates no majority race',
+                                      'chatter'       : 'Following a trend in New York City, Philadelphia and elsewhere, black communities are most affected by public school closures. Three years after Chicago’s mass closures, black neighborhoods are still stuck with the most vacant schools, with Austin and West Englewood at the top of the list.'
+                                     },
+                    'hs'     :       {
+                                      'properties'    : 'hs_diploma_or_less',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Education',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["rgb(186,228,179)","rgb(116,196,118)", "rgb(49,163,84)","rgb(0,109,44)"],
+                                      'html_id'       : 'hs',
+                                      'hed'           : 'No college',
+                                      'subhed'        : 'Percent of residents with only high school diploma, GED or less',
+                                      'chatter'       : 'Parents with less education are often the most eager to make sure their children have access to good schools. Communities in which adults often lack even a high school diploma, however, lost the most schools and end up stuck with vacant buildings.',
+                                     },
+                    'unemployment' : {
+                                      'properties'    : 'unemployment',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Unemployment',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#b3cde3","#8c96c6","#8856a7","#810f7c"],
+                                      'html_id'       : 'unemployment',
+                                      'hed'           : 'Unemployment',
+                                      'subhed'        : 'Percent of civilian workforce reported as unemployed between 2010 and 2014',
+                                      'chatter'       : 'High unemployment is an economic burden on black communities that were hit hardest by school closures. Chicago’s black unemployment rate of 14.7 percent drives the statewide rate, which is among the highest in the nation.',
+                                     },
+                    'vacancy'      : {
+                                      'properties'    : 'vacancy',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Vacancies',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#bdd7e7","#6baed6","#3182bd","#08519c"],
+                                      'html_id'       : 'vacancy',
+                                      'hed'           : 'Vacant homes',
+                                      'subhed'        : 'Share of housing stock reported vacant 2010-2014',
+                                      'chatter'       : 'Community activists pointed out in 2013 that black communities were already overburdened with abandoned homes and buildings and didn’t need to add shuttered schools to the mix. That warning has materialized, especially in Englewood and West Garfield Park, where residential vacancies are highest.',
+                                     },
+                    'poverty'      : {
+                                      'properties'    : 'poverty',
+                                      'data_type'     : 'pct',
+                                      'button_name'   : 'Poverty',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#d7b5d8","#df65b0","#dd1c77","#980043"],
+                                      'html_id'       : 'poverty',
+                                      'hed'           : 'Poverty',
+                                      'subhed'        : 'Population living below federal poverty line',
+                                      'chatter'       : 'Communities with high poverty rates lost the most schools—and the stability and resources those schools could bring to help families and children break out of poverty.',
+                                     },
+                    'property'     : {
+                                      'properties'    : 'property',
+                                      'data_type'     : null,
+                                      'button_name'   : 'Property crime',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#fdbe85","#fd8d3c","#e6550d","#a63603"],
+                                      'html_id'       : 'property',
+                                      'hed'           : 'Per-capita property crime',
+                                      'subhed'        : 'Includes thefts, burglaries, vandalism, etc. per 100,000 residents, from September 2015 through August 2016',
+                                      'chatter'       : 'Vandalism, theft and similar crimes are far more common in communities with still-vacant closed schools—which have in some cases become magnets for more property crime.',
+                                     },
+                    'violent'      : {
+                                      'properties'    : 'violent',
+                                      'data_type'     : null,
+                                      'button_name'   : 'Violent crime',
+                                      'domain_type'   : 'quantize',
+                                      'scale_range'   : null, // min/max
+                                      'color_palette' : ["#fcae91","#fb6a4a","#de2d26","#a50f15"],
+                                      'html_id'       : 'violent',
+                                      'hed'           : 'Per-capita violent crime',
+                                      'subhed'        : 'Includes batteries, robberies, murders, etc. per 100,000 residents, from September 2015 through August 2016',
+                                      'chatter'       : 'Shootings and other violent crimes are a heavy burden in black and brown communities where schools remain vacant.',
+                                     }
+}
+
+
+school_types = [
+                {'label': 'Repurposed school', 'id': 'label-repurposed'},
+                {'label': 'Not repurposed', 'id': 'label-not-repurposed'},
+               ]
+
+var intro_text = "<strong>Explore the demographics of communities affected by the 2013 school closings.</strong>"
+
+
+/*
+*
+* drawing map on svg
+*
+*/
+
+var width = 320
+    height = 530
+
+var container = d3.select("body")
+                  .append("div")
+                  .attr({
+                         id : "container",
+                       })
+
+var intro = d3.select("#container")
+              .append("div")
+              .attr({
+                     id : "intro",
+                   })
+              .html(intro_text)
+
+// set up the list of demographic pickers
+var picker = d3.select("#container")
+               .append("ul")
+               .attr({
+                      id : "picker",
+                    })
+
+
+// set up legend
+var make_legend = function() {
+    // build legend and headers
+    var legend_element     = d3.select("#container").append("div")
+                                             .attr({
+                                                    id : "legend",
+                                                    x  : x_coord,
+                                                    y  : y_coord,
+                                                  }) 
+
+    var legend_hed = legend_element.append("p")
+                                   .attr({ 
+                                          id : "legend_hed",
+                                        })
+
+    var legend_subhed = legend_element.append("p")
+                                   .attr({ 
+                                          id : "legend_subhed",
+                                        })
+    
+    var legend_item_list = legend_element.append("ul")
+                                         .attr({
+                                              id : "legend_item_list"
+                                            })
+
+    var school_legend_item_list = legend_element.append("ul")
+                                               .attr({
+                                                      id : "school_legend_item_list"
+                                                    })
+}
+
+
+var switch_legend = function(color,config,type){
+
+    // set up name, color palette, labels, position    
+    var name           = config['button_name']
+    var palette        = config['color_palette']
+    var labels         = config['scale_range']
+    var box_dimensions = { 'height': 10, 'width': 10 }
+
+    // remove old stuff
+    d3.selectAll(".legend_label").remove()
+    d3.selectAll(".legend_square").remove()
+    d3.selectAll(".legend_item").remove()
+
+    var legend_element          = d3.select("#legend") 
+    var legend_hed              = d3.select("#legend_hed")
+    var legend_subhed           = d3.select("#legend_subhed")
+    var legend_item_list        = d3.select("#legend_item_list")
+    var school_legend_item_list = d3.select("#school_legend_item_list")
+
+    legend_hed.text(config['hed'])
+    legend_subhed.text(config['subhed'])
+
+    
+    // build data: {'color':'value_range'}
+    var data = {'hed':'hed','subhed':'subhed','items':[]}
+    for (i=0;i<palette.length;i++){
+        datum            = {}
+        datum['shade']   = palette[i]
+        if (type == 'ordinal'){
+            // labels are predefined text so go get them
+            var range = labels[i]
+        } else {
+            // labels are derived by quantized intervals
+            var range = color.invertExtent(datum['shade'])
+            if (config['data_type'] == 'pct') { range = percentify(range) } 
+            else { range = rangify(range) } 
+        }
+        datum['range']   = range
+        datum['y']       = y_coord
+        y_coord          = y_coord + 20
+        datum['x']       = x_coord
+        var height       = box_dimensions['height']
+        var width        = box_dimensions['width']  
+        data.items.push(datum)
+    }
+
+    var legend_items = legend_item_list.selectAll("li")
+        .data(data.items)
+        .enter()
+        .append("li")
+        .attr({
+               class : "legend_item",
+             })
+
+    var school_legend_items = school_legend_item_list.selectAll("li")
+        .data(school_types)
+        .enter()
+        .append("li")
+        .attr({
+               class : "school_legend_item",
+             })
+
+    var legend_squares = legend_items.insert("span")
+                                     .attr({
+                                            "class" : "legend_square"
+                                          })
+
+    var school_legend_squares = school_legend_items.insert("span")
+                                     .attr({
+                                            "id" : function(d) {return d.id}
+                                          })
+
+    var legend_labels = legend_items.insert("span")
+                                    .attr({
+                                           "class" : "legend_label"
+                                         })
+
+    var school_legend_labels = school_legend_items.insert("span")
+                                    .attr({
+                                            "class" : "school_legend_label"
+                                         })
+
+    var square_attributes = legend_squares.attr({
+                                                 //style : function(d) { return d.shade} +";",
+                                                 style              : function(d) { return "background-color:" + d.shade + ";"},
+                                                 height             : height,
+                                                 width              : width,
+    })
+
+    var labels_text = legend_labels.text(function(d){return d.range})
+    
+    var school_labels_text = school_legend_labels.text(function(d){return d.label})
+    
+/*
+
+    var legend_squares = legend_items.select("div")
+                                     .data(data.items)
+                                     .enter()
+                                     .append("div")
+                                     .attr({
+                                            class : "legend_squares"
+                                          })
+    /*
+
+    var square_attributes = squares.attr({
+        class      : 'legend_label',
+        background : function(d) { return d.shade},
+        height     : height,
+        width      : width,
+    })
+    
+    var labels = legend_element.selectAll("#label")
+        .data(data.items)
+        .enter()
+        .append("text")
+        .attr("id","label")
+
+    var label_attributes = labels.attr({
+        class       : 'legend_label',
+        y           : function(d) { return d.y + height},
+        x           : x_coord + 20,
+        'font-size' : '10px'
+    })
+
+    var labels_text = labels.text(function(d){return d.range})
+    
+*/
+}
+
+
+// set up the chatter
+var chatter_box = function() {
+                              d3.select("#container")
+                                .append("div")
+                                .attr({
+                                       id     : "chatterbox",
+                                       //height : 200,
+                                       width  : 300,
+                                })
+}
+
+
+make_legend()
+
+var chatter = function() {
+                          d3.select("#chatterbox")
+                            .append("p")
+}
+
+
+// draw the svg
+
+var svg = d3.select("#container").append("svg")
+.attr({
+       width  : width,
+       height : height,
+     })    
+
+var projection = d3.geo.mercator()
+    .center([-87.36, 41.84 ])
+    .scale([width*175])
+
+var path = d3.geo.path().projection(projection)
+
+var default_config = data_configs['race']
+var default_picker_color  = default_config['color_palette'][default_config['color_palette'].length-1]
+
+var default_color = '#AAAAAA'
+
+var demo_switcher = function(config) {
+    config['button_color'] = config['color_palette'][config['color_palette'].length-1]
+    
+    // fill colors     
+    d3.selectAll("#picker li")
+      .attr({
+             style: "background-color: " + default_color + ";",
+           })
+    d3.select('#' + config['html_id'])
+      .attr({
+             style: "background-color:" + config['button_color'] + ";", 
+           })
+
+    if (config['domain_type'] == 'ordinal') {
+        type = 'ordinal'
+        color = d3.scale.ordinal()
+        color.domain([config['scale_range']])
+    } else {
+        type = 'quantize'
+        color = d3.scale.quantize()
+        min = d3.min(comm_areas, function(ca) {return ca.properties[config.properties]})
+        max = d3.max(comm_areas, function(ca) {return ca.properties[config.properties]})
+        config['scale_range'] = ([min,max])
+    }
+    color.domain(config['scale_range'])
+    // add colors
+    color.range(config['color_palette'])
+    svg.selectAll(".cas").attr("fill", function(d) {  return color(d.properties[config.properties]) })
+    //make_legend(color,config,type)
+    switch_legend(color,config,type)
+    //swap chatter
+    d3.select("#chatterbox").text(config['chatter'])
+}
+
+
+
+var map = d3.json(data_file_uri, function(json) {
+//var map = d3.json("viz_data/data.topojson", function(json) {
+    // get data and shapes
+    comm_areas = json.features
+    //comm_areas = topojson.feature(json, json.objects.data.geometries)
+ 
+    
+    // default map
+    svg.selectAll("path")
+    .data(comm_areas)
+    .enter()
+    .append("path")
+    .attr("d",path) //comment out this line to speed up processing for testing
+    .attr("class","cas")
+    .attr("fill", default_color)
+  
+    // TODO: figure out how to handle default configs 
+    config = default_config
+    demo_switcher(config)
+   
+    // load switches and click events from var data_configs
+    for (config_name in data_configs) {
+        if (config_name != 'default') {
+            var this_config = data_configs[config_name]
+            button_name = this_config['button_name']
+            this_config['button_color'] = this_config['color_palette'][this_config['color_palette'].length-1]
+            // instantiate the toggle switches
+            d3.select("#picker")
+                .append("li")
+                .html(button_name)
+                .attr({
+                       id    : config_name,
+                       style : "border-color:" + this_config['button_color'] + ";", 
+                     })
+                // add onclicks, set global config
+                .on("click",function() {
+                    config = data_configs[this.id]
+                    // handle ordinal (text) vs quantize (numerical) choropleths 
+                    if (! config) {
+                        // but first check if we have a dataset selected
+                        // ... and if not, pass
+                    } else {
+                        demo_switcher(config)
+                    }
+                })
+                //.on("click",function(){d3.select("#chatter").text("bar")})
+        }
+    }    
+    // color that default button ... hack!
+    d3.select("#" + default_config['html_id'])
+      .attr("style","background-color:" + default_picker_color + ";")
+
+
+
+    /*
+    *
+    * put the schools on 
+    *
+    */
+    var schools = d3.csv(school_file_uri, function(csv) {
+        svg.selectAll("circle")
+        .data(csv)
+        .enter()
+        .append("circle")
+        .attr("cx", function(d) {return projection([d.lon,d.lat])[0]}) 
+        .attr("cy", function(d) {return projection([d.lon,d.lat])[1]})
+        .attr("r", "5px")
+        .attr("class","schools")
+        .attr("class", function(d) { return school_fill(d['Repurposed?'])}) // TODO: fill color based on repurpose
+        }
+    )
+
+})
+
+var school_fill = function(repurpose) {
+//
+    if (repurpose == 'yes') {
+        return "schools-repurposed"} 
+    else {
+        return "schools-not-repurposed"}
+}
+
+
+
+
+/*
+*
+* make a map legend
+*
+*/ 
+
+var legend_coordinates = { 'x': 50, 'y': 55 }
+var x_coord        = legend_coordinates['x']
+var y_coord        = legend_coordinates['y'] + 20
+
+var percentify = function(tuple) {
+    min          = Math.round(tuple[0]*100)
+    max          = Math.round(tuple[1]*100)
+    range_string = min + "%-" + max + "%" 
+    return range_string
+}
+
+
+var rangify = function(tuple) {
+    return Math.round(tuple[0]).toLocaleString() + '-' + Math.round(tuple[1]).toLocaleString()
+}
+
+chatter_box()
+
+
+    source_text = "<hr />Race, education, home vacancy and poverty data compiled from 2014 American Community Survey 5-year data. Crime records reported by Chicago Police Department between September 2015 through August 2016."
+
+var sources = container.append("div")
+                       .attr({
+                              id : "sources"
+                            })
+                       .html(source_text)
+
+</script><div id="container"><div id="intro"><strong>Explore the demographics of communities affected by the 2013 school closings.</strong></div><ul id="picker"><li id="race" style="background-color:#decbe4;" data-ol-has-click-handler="">Race</li><li id="hs" style="border-color:rgb(0,109,44);" data-ol-has-click-handler="">Education</li><li id="unemployment" style="border-color:#810f7c;" data-ol-has-click-handler="">Unemployment</li><li id="vacancy" style="border-color:#08519c;" data-ol-has-click-handler="">Vacancies</li><li id="poverty" style="border-color:#980043;" data-ol-has-click-handler="">Poverty</li><li id="property" style="border-color:#a63603;" data-ol-has-click-handler="">Property crime</li><li id="violent" style="border-color:#a50f15;" data-ol-has-click-handler="">Violent crime</li></ul><div id="legend"><p id="legend_hed">Majority</p><p id="legend_subhed">Population 50 percent or more of one race; mixed indicates no majority race</p><ul id="legend_item_list"><li class="legend_item"><span class="legend_square" style="background-color:#fbb4ae;" height="10" width="10"></span><span class="legend_label">Black</span></li><li class="legend_item"><span class="legend_square" style="background-color:#b3cde3;" height="10" width="10"></span><span class="legend_label">White</span></li><li class="legend_item"><span class="legend_square" style="background-color:#ccebc5;" height="10" width="10"></span><span class="legend_label">Hispanic</span></li><li class="legend_item"><span class="legend_square" style="background-color:#decbe4;" height="10" width="10"></span><span class="legend_label">Mixed</span></li></ul><ul id="school_legend_item_list"><li class="school_legend_item"><span id="label-repurposed"></span><span class="school_legend_label">Repurposed school</span></li><li class="school_legend_item"><span id="label-not-repurposed"></span><span class="school_legend_label">Not repurposed</span></li></ul></div><svg width="320" height="530"><path d="M236.4935989335645,243.84364673885284L237.75592303885787,248.6479248251635L238.9006151053036,249.2635271566469L238.0964818046632,249.34031069598132L238.49298148744856,250.6401585674248L239.41069819043332,251.7907050087888L241.33733311254764,250.22489509719162L240.86626155226259,251.46949211631L239.4315063097456,251.90056860911136L239.49338799522957,253.55117904313374L240.97295903833583,256.56981129968335L240.66938776643656,258.13922319666744L242.4834351807949,259.5349491595043L242.77883774065413,261.3259150113299L235.03487071716518,261.5620552525652L233.0889818706055,271.13110400937876L217.11468259115645,271.40563328168355L216.14018668253266,242.7253731993478L228.15599271043902,242.49135437905352L229.78138430565014,243.3180308593801L236.23432893390418,243.09055184309545Z" class="cas" fill="#fbb4ae"></path><path d="M253.0974413396034,280.26109429357166L238.87133134029864,280.4126640723043L238.7101286768011,271.03405277417187L233.0889818706055,271.13110400937876L235.03487071716518,261.5620552525652L242.77883774065413,261.3259150113299L247.622089823868,267.9137447151297L248.09510735196818,272.80069172533695L250.20221184442926,276.47847126804845L252.64509507677576,278.40774773273733Z" class="cas" fill="#fbb4ae"></path><path d="M217.2808011631423,299.97791417717235L217.5181399715948,309.54039697629196L210.77214270329569,309.70195738604525L210.37723268351692,288.14367739552836L209.8708993029577,288.1568112478926L210.51973667141283,281.0173467101995L210.12669707070745,271.53116720471735L216.73513959038246,271.41223301428545Z" class="cas" fill="#fbb4ae"></path><path d="M238.87133134029864,280.4126640723043L239.1654459303536,299.50836096767307L217.2808011631423,299.97791417717235L216.73513959038246,271.41223301428545L238.7101286768011,271.03405277417187Z" class="cas" fill="#fbb4ae"></path><path d="M253.0974413396034,280.26109429357166L255.16658820841985,284.73703098183614L257.8046273286891,286.9384439771093L259.93438264702854,292.9994790377459L264.863258316007,297.3108852239675L264.6073328226339,299.1492934718044L239.1654459303536,299.50836096767307L238.87133134029864,280.4126640723043Z" class="cas" fill="#fbb4ae"></path><path d="M172.70295393193373,71.25468650305993L173.12411871744553,90.41824924776301L152.82471027388237,90.74949093541363L151.8099553308275,87.99485212283616L144.54330401404877,77.64716768972721L140.94362393765186,62.08139291182306L158.00234479770006,61.96671236757538L157.78319504811952,52.32524142064358L172.4118037958542,51.9787783026477Z" class="cas" fill="#b3cde3"></path><path d="M239.52679799235193,320.97818217582244L230.02461877604946,321.20776988443686L230.15872677386506,328.3641133529891L220.62676735232526,328.6011529183161L220.5982113628561,324.4701931815216L217.8043326750776,324.5353038327012L217.2808011631423,299.97791417717235L239.1654459303536,299.50836096767307Z" class="cas" fill="#fbb4ae"></path><path d="M264.6073328226339,299.1492934718044L265.03675624052994,304.5980502254606L266.72480380114575,306.3760325909461L268.99905172214494,306.42274101479416L269.701706236694,307.3888507514639L269.4286785212171,308.43841784867254L266.0123550314747,309.9689393593362L265.3388824792346,312.90133361118205L268.5718749792286,317.4441280012543L267.1657475114189,317.8014113355457L267.76104024096276,317.95210523987043L267.76628990855534,320.6211917484543L239.52679799235193,320.97818217582244L239.1654459303536,299.50836096767307Z" class="cas" fill="#decbe4"></path><path d="M267.76628990855534,320.6211917484543L268.8401077446033,323.96105551583605L274.2636005280074,326.88031306934136L276.3161809391022,326.5694179466591L277.1611514310498,322.65260776561627L276.40539674939646,326.66057612852455L271.73932869927376,328.3491573098436L270.12152873177547,329.84261969874206L269.5665644304245,332.074905657988L269.8200705242489,334.20128153378755L272.7961288174265,334.15437473634665L273.0165650386334,333.049998542112L271.4646073347103,330.89831663283985L271.6081275077304,329.7378212715266L272.56173979645246,329.68945710291155L278.2207670902135,336.8150490163316L239.78945856563223,337.66719312960777L239.9669414908276,347.1972789887077L230.32735534515814,337.8914133323924L230.02461877604946,321.20776988443686Z" class="cas" fill="#fbb4ae"></path><path d="M192.10566373731126,42.24361896778282L170.32806948192592,42.51563560764771L165.34996653160488,27.921857446686772L163.19503723089292,19.686969130823854L162.68913601027452,14.201467218874313L173.9636455230211,14.331948798848316L170.1143583524099,9.525927748334652L181.77423262356024,9.64567458430247L185.79323705517163,24.013757710134087L190.24504846757918,30.0699542872826L191.61075727106072,30.75713044074655L189.33166288984648,31.572581751192047L189.30491411621915,32.44500029258052L189.81708722334588,36.41274507599155Z" class="cas" fill="#decbe4"></path><path d="M96.24461683967093,81.95037632137246L81.73864889025572,82.1933357677699L81.71130383685522,81.00108442730561L61.66627881945169,81.36782323936495L61.938520250158035,62.320408775463875L71.41572533681756,62.31229478948808L71.63037916239409,47.91059977776604L66.69397662355914,44.880555933843425L66.71130007477768,43.25082743552048L77.75539689634752,44.43203428283596L77.93736343833734,46.522655732034764L75.65270008673542,48.87719608502084L76.43905028501467,50.63054074720276L78.35874401144974,51.10728670691606L77.57411948454683,52.84964218085224L78.8038061473926,54.2204894972092L81.26239439753408,54.59795886932989L82.30615592582035,52.96940565377008L84.98559218681476,53.82861463740119L86.99379817722365,52.793920201438596L87.49246979093004,54.57026098512142L86.81230443784443,55.674060880439356L88.38663486219593,55.64726406436239L93.87471544394793,69.69884810342774L93.74340594101523,75.98570039647166L96.07016493410629,76.01044025385636Z" class="cas" fill="#b3cde3"></path><path d="M80.0687006963417,33.401333852387324L83.38233753219538,35.458298410601856L83.70300231677538,34.91883856899949L81.6733738258481,33.642819129621785L81.7531337452383,28.886419684320572L87.41977374025737,28.951315137484926L86.82744412431202,37.61267797668552L95.98561385653738,43.38144564542745L121.86699678270088,43.45021209938568L116.54771240915579,52.85929377588036L110.15140868625895,57.82153993091197L110.24957708742295,62.565079572523246L101.76484091368911,62.67211932972714L100.52070777493645,61.29718124582723L101.24383915764338,81.27689323148661L96.24461683967093,81.95037632137246L96.07016493410629,76.01044025385636L93.74340594101523,75.98570039647166L93.87471544394793,69.69884810342774L88.38663486219593,55.64726406436239L86.81230443784443,55.674060880439356L87.49246979093004,54.57026098512142L86.99379817722365,52.793920201438596L84.98559218681476,53.82861463740119L82.30615592582035,52.96940565377008L81.26239439753408,54.59795886932989L78.18012290530896,53.88973088361672L77.57093155791517,52.74327538459329L78.4102017217665,51.19932253412844L76.43905028501467,50.63054074720276L75.64501241398102,48.68292090545583L77.79169766204723,46.805065160217055L77.94205729753594,44.688417381177715L72.7138438658003,43.44982353783416L69.7794236492191,44.06103373346559L68.53335681390308,36.058105332413106L67.50995417863305,36.42198120219837L66.39513293078926,39.80523125985928L61.74440162893734,40.31212157892878L59.53514020788134,39.02539623621851L67.54073699895525,33.91616158503166L60.97308916010661,24.052201206643076L70.21573462951346,24.058778884544154L70.37451932411932,19.520064588803507L72.45786793019215,19.594206594731077L72.37867231729615,24.071126063114207L75.99869619966194,24.102758369794174Z" class="cas" fill="#b3cde3"></path><path d="M140.94362393765186,62.08139291182306L143.74291240666935,74.6095163020509L139.14988680511306,73.1324571557634L136.92449972715985,74.07322131294495L135.65205347092706,76.06717800758634L132.3778131519066,76.75364768226427L122.31067615604843,71.2379858475324L120.09443889322574,72.00590240761812L120.19375418576237,76.80169414034026L116.57792766510102,76.8534028692593L116.51192374867969,74.5104985355938L115.32128063493292,74.47894152707158L115.26811966930109,72.07445687928703L100.78176440187963,72.25729062653409L100.52070777493645,61.29718124582723L101.76484091368911,62.67211932972714L110.24957708742295,62.565079572523246L110.15140868625895,57.82153993091197L116.54771240915579,52.85929377588036L121.86699678270088,43.45021209938568L137.25974413225777,43.296379229970626Z" class="cas" fill="#decbe4"></path><path d="M143.74291240666935,74.6095163020509L145.10131309353164,78.83091304133995L151.54943745516357,87.58407634907053L152.82471027388237,90.74949093541363L118.66738223512948,91.20498372659495L110.69398478668882,83.82650357236707L110.64420560498547,81.73155330089503L101.04677251394605,81.86985255930631L100.78176440187963,72.25729062653409L115.26811966930109,72.07445687928703L115.32128063493292,74.47894152707158L116.51192374867969,74.5104985355938L116.57792766510102,76.8534028692593L120.19375418576237,76.80169414034026L120.09443889322574,72.00590240761812L122.31067615604843,71.2379858475324L132.3778131519066,76.75364768226427L135.65205347092706,76.06717800758634L136.92449972715985,74.07322131294495L139.14988680511306,73.1324571557634Z" class="cas" fill="#ccebc5"></path><path d="M96.24461683967093,81.95037632137246L101.04677251394605,81.86985255930631L101.57517037780781,87.96566730214545L100.86454725961084,87.84693061433791L104.25494480895577,91.42958359666227L102.25694812605798,91.45613056325237L106.15175027663645,101.00003132452548L106.39551321229374,115.36930158256291L105.70074917982856,115.38021630932053L106.53333197665052,120.16296753211645L73.19832201719692,120.74568466967321L72.65081683492463,101.54959595046239L63.08740047358151,101.73311500733689L62.879346712026745,81.34627963486855L81.71130383685522,81.00108442730561L81.73864889025572,82.1933357677699Z" class="cas" fill="#b3cde3"></path><path d="M152.82471027388237,90.74949093541363L153.0114739687997,100.41126426007395L150.75481805964955,105.55775780262047L151.3989991172857,109.90791988142882L120.907925567255,110.33211095779552L121.11876155834761,119.89558209536335L106.53333197665052,120.16296753211645L105.70074917982856,115.38021630932053L106.39551321229374,115.36930158256291L106.15175027663645,101.00003132452548L102.25694812605798,91.45613056325237L104.25494480895577,91.42958359666227L100.86454725961084,87.84693061433791L101.57517037780781,87.96566730214545L101.04677251394605,81.86985255930631L110.64420560498547,81.73155330089503L110.69398478668882,83.82650357236707L118.66738223512948,91.20498372659495Z" class="cas" fill="#decbe4"></path><path d="M73.19832201719692,120.74568466967321L43.35664878273383,121.33931682243565L43.47711087015341,125.91841954784468L33.93116016447311,126.17940254756104L33.805693506030366,121.41497254220303L15.927954935570597,121.89106237004307L15.624293273154763,112.57326902107161L14.341877478524111,112.45097994228126L14.0819753594551,93.26418316821218L18.0120597074565,93.16174425424106L18.876864533944172,102.72230696029146L42.84603699129366,101.93274242407642L42.82514450987219,100.48558202709683L55.49466464681609,92.38342588937667L62.84706446582277,92.13801927211898L63.08740047358151,101.73311500733689L72.65081683492463,101.54959595046239Z" class="cas" fill="#b3cde3"></path><path d="M60.29637451085728,148.25230663749244L43.86196176355588,140.55728325674136L43.35664878273383,121.33931682243565L58.97292420537269,121.02099502394412L59.47522394587577,146.31541678044596Z" class="cas" fill="#ccebc5"></path><path d="M107.28868910911842,152.99717679009336L85.3183194611338,149.41328694872936L64.34664792387048,149.6419915653023L60.44228773498617,148.35545841839485L59.47522394587577,146.31541678044596L58.97292420537269,121.02099502394412L106.46814581233775,120.16409418364492Z" class="cas" fill="#ccebc5"></path><path d="M162.68913601027452,14.201467218874313L163.19503723089292,19.686969130823854L165.5161756206653,28.45446834109316L170.32806948192592,42.51563560764771L172.11170236866747,42.47167125191481L172.27064322135993,51.98127501358249L157.78319504811952,52.32524142064358L158.00234479770006,61.96671236757538L140.94362393765186,62.08139291182306L137.2617462360795,43.39116612217185L138.44946422887733,43.2675959307162L138.87870763649698,14.666749850242923Z" class="cas" fill="#decbe4"></path><path d="M116.9406660070963,129.56717666263285L120.61365310386464,139.1059807053971L121.52611450072436,139.09164981990762L121.67622625817603,146.3036740795942L123.37605001138581,146.27384488080133L124.32436067181698,148.6618858363945L124.17424759971618,151.05914443347865L125.0725014280033,151.04357630479353L125.84716555032355,153.34193975355447L107.28868910911842,152.99717679009336L106.46814581233775,120.16409418364492L113.26384295895696,120.03871477491339Z" class="cas" fill="#ccebc5"></path><path d="M159.43083634899813,123.82575120464753L159.53257886818028,128.98233541617083L116.9406660070963,129.56717666263285L113.26384295895696,120.03871477491339L121.11876155834761,119.89558209536335L120.907925567255,110.33211095779552L151.3989991172857,109.90791988142882L152.3038914709905,115.07172135492874L153.91221147494798,118.37148967215035L156.01046218683769,120.29414510899369L157.317272925211,123.04428760366136Z" class="cas" fill="#ccebc5"></path><path d="M164.4610702997743,128.9171889456993L166.45051222476468,131.00382487777824L167.525146468397,133.8628639735689L172.18424816819606,136.23575892125518L172.85200238850666,139.21473521234293L174.89841747334867,141.29531539027812L178.87171180669975,142.31553676169278L183.24600687062775,150.7414693393075L179.51588334045664,152.49329304960702L164.84547229509917,152.04946964445116L164.87220864131814,153.4113888690772L125.84716555032355,153.34193975355447L125.0725014280033,151.04357630479353L124.17424759971618,151.05914443347865L124.32436067181698,148.6618858363945L123.37605001138581,146.27384488080133L121.67622625817603,146.3036740795942L121.52611450072436,139.09164981990762L120.61365310386464,139.1059807053971L116.9406660070963,129.56717666263285L159.53257886818028,128.98233541617083L159.43083634899813,123.82575120464753L161.40426908127847,126.54603702742315L163.88120986582362,127.38386003063351Z" class="cas" fill="#decbe4"></path><path d="M155.9286514877458,186.74798567184916L108.0117316438118,187.2369935063325L107.28868910911842,152.99717679009336L145.7535926229757,152.9661602743363L145.86551848873205,157.8889645414165L140.86106443370227,158.0331401805961L141.16580076799437,172.30519118109805L145.78230756468838,172.24878464219364L145.53510924013972,177.0329744439514L150.91210471976956,176.95598675067595L150.94290890195407,178.6895154587546L155.83309022830508,181.31669365888956Z" class="cas" fill="#ccebc5"></path><path d="M189.8528930755856,157.08589298362494L187.53846906672698,159.33737103248131L189.24225418426795,159.3109473103541L188.4569788073277,164.6285964976778L190.80389028936042,169.71416147082346L194.7019239772926,171.23130767767725L197.7412612164626,173.75962148120016L201.5570823126327,174.27666588931606L202.3496893880656,178.9444434641482L206.9569385859213,185.58652397310652L155.9286514877458,186.74798567184916L155.83309022830508,181.31669365888956L150.94290890195407,178.6895154587546L150.91210471976956,176.95598675067595L145.53510924013972,177.0329744439514L145.78230756468838,172.24878464219364L141.16580076799437,172.30519118109805L140.86106443370227,158.0331401805961L145.86551848873205,157.8889645414165L145.7535926229757,152.9661602743363L164.87220864131814,153.4113888690772L164.84547229509917,152.04946964445116L179.51588334045664,152.49329304960702L185.63897036468552,149.99618549841398L188.66397390169732,152.72076158464188Z" class="cas" fill="#b3cde3"></path><path d="M60.29637451085728,148.25230663749244L64.34664792387048,149.6419915653023L85.3183194611338,149.41328694872936L107.28868910911842,152.99717679009336L107.45706478376815,176.6129695315758L108.38665585030685,201.56700978909066L109.06842624113779,201.56469800305058L109.12858286466508,203.68250138386065L109.19027766262298,206.34724195694434L108.51121040404541,206.36552719714382L108.82218245178228,215.93310460394423L75.22715467459057,216.5933173246449L73.79972988774534,159.0965639836504L44.335395378642716,159.64054887923703L43.86196176355588,140.55728325674136Z" class="cas" fill="#fbb4ae"></path><path d="M127.90767594642239,210.80539204744127L127.94999561426812,212.48799457939458L115.84844080785115,211.94746986230166L115.75533865587204,209.35144632854644L108.69730123894988,211.99459541682882L109.08074300079898,201.93851100364554L108.38665585030685,201.56700978909066L108.0117316438118,187.2369935063325L127.180558846856,186.91679537650634Z" class="cas" fill="#fbb4ae"></path><path d="M155.9286514877458,186.74798567184916L158.7615992152423,186.7756103252541L156.33740955121175,188.1917548816782L155.90706390255946,191.69211599850678L155.23511346042505,191.7252700693425L155.34978543351463,196.0554517222772L155.99262559429917,196.04562192936282L156.29735717650328,211.55933594158705L127.90767594642239,210.80539204744127L127.180558846856,186.91679537650634Z" class="cas" fill="#fbb4ae"></path><path d="M208.68944731999363,189.32318915404176L208.17552509636153,198.58084859779774L210.17782756718225,204.49976503496873L211.48485427295964,214.2271545978365L211.69958797298023,224.56581194151659L211.0647126975382,226.7470400275488L207.37258081916661,226.82134146109456L207.29640043761174,223.73410311702173L172.83487812042586,224.35370724312088L161.5574229270569,225.8374491399518L161.53505748744647,224.58989817583642L159.25282987416722,224.6267122264253L159.24003327652463,219.7461376786232L156.72636571904877,215.14279606199852L156.32767165621044,212.7883377161852L155.99262559429917,196.04562192936282L155.34978543351463,196.0554517222772L155.23511346042505,191.7252700693425L155.90706390255946,191.69211599850678L155.81521628293558,189.50736566838168L156.95054103842995,187.5591068641952L160.7643462629785,186.17122614294203L206.9569385859213,185.58652397310652L207.5392808834731,188.10563076035032Z" class="cas" fill="#decbe4"></path><path d="M127.90767594642239,210.80539204744127L156.29735717650328,211.55933594158705L156.72636571904877,215.14279606199852L159.24003327652463,219.7461376786232L159.45485350029776,227.7134618909913L152.0299571580108,229.94539041971439L144.82666489233088,229.72732478292892L144.8771174854628,231.89153721481853L136.73976667042007,232.22080162526981L136.79837703231897,234.26726960099768L135.5487175169983,234.64053213169245L125.91197779591312,234.80459094471007L125.96532701444812,237.71854600098595L109.25553669127112,242.66237475757225L108.69730123894988,211.99459541682882L115.75533865587204,209.35144632854644L115.84844080785115,211.94746986230166L127.94999561426812,212.48799457939458Z" class="cas" fill="#fbb4ae"></path><path d="M205.3312363895675,99.25404747114953L184.58560872815724,99.81221635948896L180.96576636582904,90.27472727404529L173.12411871744553,90.41824924776301L172.70295393193373,71.25468650305993L195.3266325450386,70.78590606902435L200.32638594553282,68.97557099931146L199.82114039086446,69.49299083954975L200.32817519293167,75.52477746846853L203.43419626605464,81.83482859930518L214.1565684377856,85.76124989108939L214.30643924271862,83.62338708893367L215.1662292475521,81.35451583311078L214.18140036676778,81.19617014437972L215.0746051462338,80.91604107683816L215.2496214855055,81.4190534872323L214.23000360484002,84.83873073494033L215.13292029424338,88.17569503738196L214.68486841599224,89.19911848966149L209.61703592946287,93.02718677902885L206.0388391475717,93.48502847859345L205.6139183416526,91.38974007934303L208.95269123793696,91.77496523203445L210.8210307147092,89.15570365339954L209.41502589966694,88.64348829479422L204.2573104024923,90.01469984189316L204.7557610823569,93.21655001585168L205.33361790937488,93.27613110221864L204.62669969256967,94.57315873524203Z" class="cas" fill="#b3cde3"></path><path d="M160.00486013057525,256.8203493136607L143.18607020261697,263.38277157305856L143.21511223507696,264.2781912736318L110.00470994628267,277.9309083630578L109.25553669127112,242.66237475757225L125.96532701444812,237.71854600098595L125.91197779591312,234.80459094471007L135.5487175169983,234.64053213169245L136.79837703231897,234.26726960099768L136.73976667042007,232.22080162526981L144.8771174854628,231.89153721481853L144.82666489233088,229.72732478292892L152.0299571580108,229.94539041971439L159.38484217044606,227.73429511616268Z" class="cas" fill="#ccebc5"></path><path d="M211.0647126975382,226.7470400275488L206.92468755494338,231.25735495008848L203.09168340146425,237.28271418778604L188.1484947233257,240.46865734017047L183.25940334754705,244.2195470538718L181.928093358787,247.8761670230233L182.59647838423552,251.22658165699977L180.4255069923238,252.80576104095962L177.73018465933274,253.70469418651192L167.56790976019693,253.80177416363586L159.94775816892798,256.67326995849L159.3465690574667,224.62594996982807L161.53505748744647,224.58989817583642L161.5574229270569,225.8374491399518L172.83487812042586,224.35370724312088L207.29640043761174,223.73410311702173L207.37258081916661,226.82134146109456Z" class="cas" fill="#ccebc5"></path><path d="M236.4935989335645,243.84364673885284L236.23432893390418,243.09055184309545L229.78138430565014,243.3180308593801L228.15599271043902,242.49135437905352L216.91922043949307,242.7099330698111L215.88493051847036,226.6721694943626L211.0647126975382,226.7470400275488L211.69958797298023,224.56581194151659L211.47926121212367,214.15806039382005L226.8950118440698,213.91105591451924L232.0981498444744,212.59400567530975L233.2925841356191,213.33994587196503L233.0268495859782,214.8950974262334L239.674426163343,214.6596015985342L239.5190771035268,217.46677882649965L238.71315454760042,216.95808078222035L238.01985957834404,218.14878779474384L238.63014564364858,220.64171259177238L239.54291196244594,221.1259056338531L239.59804687093128,223.65245821479039L238.5153011016955,223.81237595419225L239.0642577464314,232.47295808906347L235.75429871487722,231.93259164080519L236.30366547567246,227.9347270734288L234.99431862001074,222.90353851877444L236.0396335815749,219.28900305564457L235.1843963315623,216.06112443372695L233.045275930941,216.08989386940084L232.2918039614451,219.33412261802005L233.5521589921409,223.30429806962638L232.8658244980761,228.53993333149992L234.51856703916565,230.49755410099897L236.41450515203178,235.68754268857447L236.15270990911813,239.40669535143388L237.20952381237294,242.0414221351457Z" class="cas" fill="#decbe4"></path><path d="M216.91922043949307,242.7099330698111L216.14018663260504,242.72537931983243L217.11468259115645,271.40563328168355L212.23194060634705,271.4950884882419L210.1796082297078,269.40026758041495L209.8472020051413,266.75018563454796L209.6788036510552,257.6785156628612L210.34971867591958,257.16947090153553L209.74145189668343,245.22099582023657L208.00224470897228,245.25498540962872L207.93740264934604,241.88866937547573L204.76848756316758,241.73385491674708L203.9613262185885,239.36036044968932L204.74543517186248,239.25114850518003L202.42397494353645,237.52908495370502L203.75203945203975,236.8486413499195L206.92468755494338,231.25735495008848L211.0647126975382,226.7470400275488L215.88493051847036,226.6721694943626Z" class="cas" fill="#decbe4"></path><path d="M69.47677765587287,43.233400004806754L66.71130007477768,43.25082743552048L66.69397662355914,44.880555933843425L71.63037916239409,47.91059977776604L71.41572533681756,62.31229478948808L61.938520250158035,62.320408775463875L61.67028998979367,80.73997601801238L42.95670815175981,81.55323804772343L43.04400443022314,73.31242890177964L33.4160079042631,73.64013042332954L33.38093669367663,78.41059952761861L31.393529660010245,78.47951698345423L30.99151242004882,73.72739443064347L23.820127339757164,73.97579903568112L23.81311012333026,75.1470543921605L18.939301811144105,75.2609492061456L18.94569596897054,74.08762584376382L17.288176332760486,74.12479176482884L17.084710122217075,72.22145843831822L14.152469621694763,72.2980260482509L14.197292783268495,57.721700639114715L27.15101598329784,60.2030713301574L29.020847560474067,43.97385545387078L39.83151045658451,43.61384447485034L39.85116960442974,45.85563258102775L43.286949043002096,45.892076300049666L43.34518698551983,38.730468516776455L44.684267925535096,38.70240069350257L44.77605908489204,37.86181417984335L48.896752663873485,37.80608005158865L48.889335738145746,38.68433678020665L50.283819503645645,38.68862737619202L50.458224365866045,39.85104158500326L52.74426943983417,39.825071458282764L52.761605123247136,38.59592518163117L58.584820503310766,38.542681368977355L61.610974215800525,40.28766482239007L64.0353394922422,40.19838663877454L66.50715331235551,39.73044995856617L68.0222758105956,35.94446000436437L69.21579259885766,37.718072546042094ZM17.492032901762286,61.31953971469193L17.114746138293413,62.62545540038991L15.67242584133055,62.614856559739565L15.652504975048942,64.62111595301394L16.376736167323543,64.81730999705178L15.644314694072818,65.48056343504868L21.744090015767142,65.34227295728488L22.50351726214285,67.28488959360402L20.606737271373277,68.59532431722619L21.016153974022018,70.1296580906419L17.092317382906913,70.2197339392369L17.088987097740755,71.49783016820584L26.076801015457022,71.29231241415255L26.96268759407394,62.06453868173412L25.223746077361284,62.09793241807347L25.251089679950383,63.551008074966376L22.4512132195523,63.60907459966256L22.410259622352896,61.079795448742516Z" class="cas" fill="#b3cde3"></path><path d="M221.51626744239184,156.05819614031498L220.90548117786238,159.28334856469155L222.24156757458695,165.93135124992114L224.05404746896238,168.56211412088305L226.62790168635547,169.80586474729353L232.05106298915052,180.27071613607404L233.6696766554087,180.01091322257707L235.50290380946535,176.20211198620382L243.05662900343304,176.0134797685896L243.1289839564124,180.09270889536856L235.8275414857926,180.24872731408686L235.85330553358654,181.4634586417742L244.72924667861662,181.17150219639734L246.84562090897816,181.39295616289746L246.86998906616645,182.4748523857852L236.10795281424362,183.04906471507275L236.09615566465072,185.27921981823602L234.44845626395545,185.28474243319943L234.24975859081314,183.55141283731064L226.00504095807264,183.76847823985736L233.0084876351466,184.07853313297528L233.1621163058153,184.8621285148838L231.76947249313525,186.4681027199549L220.90083131555002,185.81612594638136L218.4355524561688,187.64575650703046L210.61421037076798,187.72423167302622L208.68944731999363,189.32318915404176L204.86086229134526,181.7933643287397L202.3496893880656,178.9444434641482L201.5570823126327,174.27666588931606L197.7412612164626,173.75962148120016L194.7019239772926,171.23130767767725L190.80389028936042,169.71416147082346L188.4569788073277,164.6285964976778L189.24225418426795,159.3109473103541L187.53846906672698,159.33737103248131L189.8528930755856,157.08589298362494Z" class="cas" fill="#b3cde3"></path><path d="M236.15647297669784,185.1679319902105L243.02757387794554,186.57288865470036L235.803987775711,187.04366501163895L235.6676977355819,192.1507817840611L232.9796748275694,192.17942156372737L232.227390494867,193.75276874026895L229.39925058255903,194.85225270054798L230.0611847445398,196.76234835395735L229.32272478310915,196.7763633131326L229.5824880978471,212.0790287943164L230.42249391422956,212.8592046102931L226.8950118440698,213.91105591451924L211.47926121212367,214.15806039382005L210.3700472496712,205.42095586595678L208.05868478535558,197.51567126836017L208.8347719522426,189.07966886081704L210.61421037076798,187.72423167302622L218.4355524561688,187.64575650703046L220.90083131555002,185.81612594638136L231.76947249313525,186.4681027199549L233.1621163058153,184.8621285148838L233.0084876351466,184.07853313297528L226.00504095807264,183.76847823985736L234.24975859081314,183.55141283731064L234.44845626395545,185.28474243319943Z" class="cas" fill="#b3cde3"></path><path d="M300.1826618748455,361.2386913269147L297.6563323215523,362.9173421434025L296.5058623378718,362.0537705961615L292.06141395035957,365.4751342570671L259.2827577909775,366.0163097659606L249.69855529650522,356.5957992531694L250.72310837321857,351.81269941329083L251.952654570312,351.8020249146357L251.97675075219013,347.0179614623339L252.9713927272678,347.0098841010986L252.51186749732005,341.5820860974636L253.15048378542997,337.4907927855311L278.2207670902135,336.8150490163316L281.0232639454771,339.12853012169944L282.2383285391843,343.09256255134096L284.0083312362549,343.8838595331472L284.97699013155943,342.85903827254515L285.1172344515071,345.9990762394664L284.0210636190168,347.82463417921826L288.35586854911526,352.5008389726354L295.55890142390854,356.5560307820924L300.30494339008874,354.74072951823473L297.74049265640497,354.0329385382647L299.8042871531943,354.0141927226723L301.09857448957337,355.41002317893435L303.48754835673026,358.46493398326857Z" class="cas" fill="#fbb4ae"></path><path d="M249.97511831823795,385.3028957887291L245.04305794273387,385.3973559384831L244.29340031578613,390.08409229714016L243.45464013758465,390.2168954445078L241.923401004271,402.7934424586929L241.0226526643237,402.54904955340317L241.03763758324203,403.9448362039766L231.47777024196694,398.2015710638443L231.4501202940155,396.9507364861929L228.473708762569,395.427128409945L220.3369175189291,395.4703239583105L213.44722459513287,386.3638931832975L212.1885181109683,381.6692398538653L212.09129835442582,376.50621050399786L210.29515003784036,375.6363142031187L209.77547219193366,376.4803443293349L207.1239156856027,376.5900756840274L206.8677202553663,367.35047840036714L248.1565855411609,366.19471076936316L247.52881262928713,378.8712699970565Z" class="cas" fill="#fbb4ae"></path><path d="M259.4480358919536,366.0210470904567L260.61947239670553,367.0852990627682L278.95142191881314,384.7588748957496L249.97511831823795,385.3028957887291L247.49803660869657,378.27966642321553L248.1565855411609,366.19471076936316L249.83514226610714,366.17210095124756L249.73257075285073,361.3959647373049L249.1260763034952,361.40368969093106L249.5347796285787,359.0034883022163L252.2089051805815,358.97263346784894Z" class="cas" fill="#fbb4ae"></path><path d="M300.1826618748455,361.2386913269147L299.7574065415829,362.57590779569L300.95512300770497,365.3826365537316L303.592218762773,365.54612717893906L312.9178034300421,370.57480348521494L313.9629112104012,379.15128496376565L319.25712906435365,379.1647619219584L304.2123351579212,379.7614448519671L304.2369241643901,380.43747554381844L313.9847751375637,380.2928479516995L314.8629951516632,389.2777353978381L314.5767063864332,390.2391171658601L302.70351281989133,397.3477136303118L300.99762233303045,403.53409755267785L298.5222362819186,403.5880162447356L259.4480358919536,366.0210470904567L292.06141395035957,365.4751342570671L296.5058623378718,362.0537705961615L297.6563323215523,362.9173421434025Z" class="cas" fill="#fbb4ae"></path><path d="M257.7678948765679,403.01735626652953L258.42325683792296,404.24148980476457L241.04749054057174,404.6045230480595L241.0226526643237,402.54904955340317L241.923401004271,402.7934424586929L242.43534825608367,399.77885945313756L243.45464013758465,390.2168954445078L244.29340031578613,390.08409229714016L245.04305794273387,385.3973559384831L249.97511831823795,385.3028957887291Z" class="cas" fill="#fbb4ae"></path><path d="M298.5222362819186,403.5880162447356L279.06044762954116,403.8909267997806L279.0198137483385,402.18973748301505L257.7678948765679,403.01735626652953L249.97511831823795,385.3028957887291L278.95142191881314,384.7588748957496Z" class="cas" fill="#fbb4ae"></path><path d="M241.03763758324203,403.9448362039766L242.3174763982097,404.5992525785259L234.28999670560006,452.5210155346649L204.22899664497527,452.9924645900319L203.56249596975977,424.41124555379065L213.04454740075744,424.2468474902198L212.23285805716296,381.7769913894808L213.44722459513287,386.3638931832975L220.3369175189291,395.4703239583105L228.473708762569,395.427128409945L231.4501202940155,396.9507364861929L231.47777024196694,398.2015710638443Z" class="cas" fill="#fbb4ae"></path><path d="M173.72277019536705,128.76737254526233L164.4610702997743,128.9171889456993L163.83530349635112,127.34583401143027L161.86779316794127,126.85569088802004L158.94152582605602,123.3995722877371L157.317272925211,123.04428760366136L156.01046218683769,120.29414510899369L153.91221147494798,118.37148967215035L152.18951986383763,114.63797100617376L150.75481805964955,105.55775780262047L153.0114739687997,100.41126426007395L152.82471027388237,90.74949093541363L173.12411871744553,90.41824924776301Z" class="cas" fill="#b3cde3"></path><path d="M243.89312989845348,451.5171899740744L241.11091752887296,452.42981784678705L234.2479238054948,452.1514275435402L242.3174763982097,404.5992525785259L258.42325683792296,404.24148980476457L260.12459842607495,406.38493462815677L260.00401455965766,421.66755498747807L259.35966216915403,423.28903755646024L257.84073994368373,423.32531016969006L257.01697242137743,426.7741755037059L250.93479364279483,434.8071825827137Z" class="cas" fill="#fbb4ae"></path><path d="M298.5222362819186,403.5880162447356L300.99762233303045,403.53409755267785L300.9886671600834,409.9771876006562L301.93976529194333,412.986529802969L301.40686988810194,419.3880316899158L298.34727907679917,423.86720487160346L298.2995462189283,429.84395816786855L300.36091952217976,429.8499180745421L298.9836453694734,433.0608555018989L299.26294046951807,468.5630238526646L297.76424755224434,475.16761532853707L299.4669983963977,486.82962773602776L292.3226127274829,481.2806644298689L287.8491157371318,472.76982674925966L285.2468965804728,474.4928953707422L285.22080654989986,486.87265808627853L263.4227758937923,486.83045823444263L256.1792874072853,485.2997731128926L244.42507371983083,467.04631169220374L243.53572485948098,453.43813142742874L250.93479364279483,434.8071825827137L257.01697242137743,426.7741755037059L257.84073994368373,423.32531016969006L259.35966216915403,423.28903755646024L260.00401455965766,421.66755498747807L260.12459842607495,406.38493462815677L257.7678948765679,403.01735626652953L279.0198137483385,402.18973748301505L279.06044762954116,403.8909267997806Z" class="cas" fill="#fbb4ae"></path><path d="M319.1028368131374,444.19901653409033L313.48872657315223,444.1655799627697L313.4402716811164,453.66763410058047L303.94407229393255,453.74544460689503L303.95636735789594,456.01079761655274L299.1071704522328,456.01787640168914L298.9836453694734,433.0608555018989L300.36091952217976,429.8499180745421L298.2995462189283,429.84395816786855L298.34727907679917,423.86720487160346L301.4577600729681,419.1311308885997L301.93976529194333,412.986529802969L300.9886671600834,409.9771876006562L300.9658623747382,403.1882776900311L301.8699606388691,398.6659122745041L304.6436013217899,395.7659801913542L314.5767063864332,390.2391171658601L314.6897390767117,391.45261744655727L319.03611820227525,392.75383119945764L319.252762272954,404.79640334652504L318.13670921292214,408.02068783797586L319.2511246656795,410.68165568714903L317.1627510758117,410.9005178629668L315.1110968127905,413.27477477217326L317.2791084493074,417.29172089439817L318.56833839909814,416.0188626322197L315.40064453727973,419.3235718067008L317.12047481839545,420.5723835552417L317.9981444633013,419.8368178096498L319.57251706533134,421.2127492943546L318.2139537969342,420.4574928215661L317.53896641515894,420.9780143271928L319.18566222103254,422.3620752302304Z" class="cas" fill="#ccebc5"></path><path d="M227.55991278977308,486.9805528624638L226.18877197257825,487.03861567513377L226.0196223489329,484.3188568512851L222.6682306707953,482.6764184626227L219.74747024016688,483.637798194497L215.05514447958558,488.647363697135L199.50195690765395,488.911942568011L199.27879872151243,481.67878048092825L204.94357474874414,481.5666539135491L204.70499777908844,472.0228196492899L185.66065138185513,472.2902756390904L185.22207757586148,453.33506360861793L233.4262867220532,452.53209520416567Z" class="cas" fill="#fbb4ae"></path><path d="M243.89312989845348,451.5171899740744L243.73420629945758,463.70518442095636L244.5398622683424,467.32721419206064L264.4287714009406,498.21337350503745L266.56166240927996,505.8327328371088L228.60137891831982,505.9774143275499L228.58743585452612,498.53294583618845L225.5708153142914,497.7338901499388L227.36393483648135,491.6296729024034L228.11868720166967,486.9830359677726L227.55991278977308,486.9805528624638L233.4262867220532,452.53209520416567Z" class="cas" fill="#fbb4ae"></path><path d="M319.1028368131374,444.19901653409033L318.5694578409457,506.03090512518975L266.56166240927996,505.8327328371088L265.1786397763062,499.67158343191113L256.1792874072853,485.2997731128926L263.4227758937923,486.83045823444263L285.22080654989986,486.87265808627853L285.2468965804728,474.4928953707422L287.8491157371318,472.76982674925966L292.3226127274829,481.2806644298689L299.4669983963977,486.82962773602776L297.76424755224434,475.16761532853707L299.26294046951807,468.5630238526646L299.1071704522328,456.01787640168914L303.95636735789594,456.01079761655274L303.94407229393255,453.74544460689503L313.4402716811164,453.66763410058047L313.48872657315223,444.1655799627697Z" class="cas" fill="#ccebc5"></path><path d="M110.00470994628267,277.9309083630578L110.91692722277367,321.09729839879583L48.762217650553794,322.53229341249244L48.36158687672287,305.0883542573356L52.700246884371154,303.2439416916386L96.14585010119481,302.21452315428905L95.81264018261572,285.0070535641498L104.04428974362963,281.52809666610847L103.9381850152131,273.5692390287877L109.91413614425983,273.45676509723125Z" class="cas" fill="#decbe4"></path><path d="M133.64493474435585,268.3114834486769L134.21170595161675,294.56315518358315L133.64517078729114,296.4478116296523L120.1193632196082,304.675202452112L120.1581646950217,306.61482340627845L112.9799606842862,306.7138471049184L113.07812299617217,308.406262057244L110.64144981124264,308.6343824625146L110.00470994628267,277.9309083630578Z" class="cas" fill="#ccebc5"></path><path d="M163.09315498576325,272.29972642649955L162.9678365263826,296.48813001998496L134.22455790636013,297.3097239587514L133.64493474435585,268.3114834486769L143.21511223507696,264.2781912736318L143.18607020261697,263.38277157305856L160.00486013057525,256.8203493136607L160.0458824665693,267.54828293386527L161.2655935613293,269.3793953063432L160.72023284013267,269.82585969514184L161.29420250961266,272.3576758500276Z" class="cas" fill="#ccebc5"></path><path d="M190.58444210299058,271.88806248981564L161.29420250961266,272.3576758500276L160.72023284013267,269.82585969514184L161.2655935613293,269.3793953063432L160.0458824665693,267.54828293386527L159.95410793391056,256.9626623877193L167.56790976019693,253.80177416363586L178.72853480240155,253.51307580325374L182.59647838423552,251.22658165699977L184.35434095881646,255.0620562582335L189.29685155478364,261.54747830713313L189.58245485699445,270.93982659438916Z" class="cas" fill="#ccebc5"></path><path d="M205.3312363895675,99.25404747114953L208.73084281597403,108.93893741905777L213.14709342527203,115.63864392999676L211.71504725054547,114.51334140449762L210.31825486029265,114.79223924659163L208.90952554090472,111.09425552890752L206.31140878486622,110.30111842611223L204.24630148337747,108.38131684903055L206.28472501668148,110.89274189993739L205.88322468328988,112.3574534372965L209.15163859853055,118.9348108117847L210.76121109575615,119.05846443137125L211.75416360564122,116.2611106995464L212.19705255249573,116.57256188549218L214.05316202453105,124.17198402539361L215.6734220408689,127.02867290561699L215.4574319559324,128.5155689789317L215.39212779930676,127.82074078055302L173.72277019536705,128.76737254526233L173.12411871744553,90.41824924776301L180.96576636582904,90.27472727404529L184.58560872815724,99.81221635948896Z" class="cas" fill="#b3cde3"></path><path d="M212.23194060634705,271.4950884882419L190.58444210299058,271.88806248981564L189.58245485699445,270.93982659438916L189.29685155478364,261.54747830713313L183.77635426320194,254.1681415936473L182.3497483482788,250.58353854122106L181.928093358787,247.8761670230233L183.09244392893743,244.3696757594371L188.1484947233257,240.46865734017047L200.61433459258114,237.68776662316668L202.42397494353645,237.52908495370502L203.1727629077941,238.81856780963426L204.13498494982196,238.28968748974148L204.76848756316758,241.73385491674708L207.93740264934604,241.88866937547573L208.00224470897228,245.25498540962872L209.74145189668343,245.22099582023657L210.34971867591958,257.16947090153553L209.6788036510552,257.6785156628612L209.8472020051413,266.75018563454796L210.1796082297078,269.40026758041495Z" class="cas" fill="#decbe4"></path><path d="M210.77214270329569,309.70195738604525L168.39519467232458,310.4992802335255L167.81706497792038,296.0975687030077L162.96362171435612,296.2681680652313L163.09315498576325,272.29972642649955L210.12669707070745,271.53116720471735L210.51973667141283,281.0173467101995L209.8708993029577,288.1568112478926L210.37723268351692,288.14367739552836Z" class="cas" fill="#ccebc5"></path><path d="M134.22455790636013,297.3097239587514L134.61691871090443,320.69700094737345L110.91692722277367,321.09729839879583L110.64144981124264,308.6343824625146L113.07812299617217,308.406262057244L112.9799606842862,306.7138471049184L120.1581646950217,306.61482340627845L120.1193632196082,304.675202452112L132.80613863679173,297.5365128482299L134.21170595161675,294.56315518358315Z" class="cas" fill="#ccebc5"></path><path d="M168.39519467232458,310.4992802335255L167.8504807954887,310.98875336047786L167.55771033214114,320.0826654228076L134.61691871090443,320.69700094737345L134.22455790636013,297.3097239587514L167.81706497792038,296.0975687030077Z" class="cas" fill="#ccebc5"></path><path d="M110.91692722277367,321.09729839879583L111.35404088701762,340.2079627775893L106.58586129997275,340.3041395553373L106.47753415233456,335.5187222366294L49.163424308630056,336.93772091638675L48.762217650553794,322.53229341249244Z" class="cas" fill="#decbe4"></path><path d="M135.4253300676355,358.3757741340087L125.90659158230119,352.9613942913493L126.15138947973901,363.56831407714344L107.13212576674414,363.67645676581014L106.58586129997275,340.3041395553373L111.35404088701762,340.2079627775893L110.91692722277367,321.09729839879583L135.08424986261525,320.6864546265206Z" class="cas" fill="#ccebc5"></path><path d="M169.04387193758157,357.95363720268506L135.4253300676355,358.3757741340087L135.08424986261525,320.6864546265206L168.09384630870773,320.07371583476925Z" class="cas" fill="#decbe4"></path><path d="M191.79451690825226,310.10071333962696L192.71657693499583,357.60163709369954L169.04387193758157,357.95363720268506L168.71750472048006,329.66402825729165L168.09384630870773,320.07371583476925L167.55771033214114,320.0826654228076L167.8504807954887,310.98875336047786Z" class="cas" fill="#fbb4ae"></path><path d="M217.8043326750776,324.5353038327012L217.11295970760693,324.55215970618156L217.5305702014739,328.67126615958114L215.95990174695908,328.69454632809357L216.14971668958606,338.2331671629072L215.09089895963552,338.2516761813531L214.77803943942126,343.0186032457641L212.640131824126,343.0745463959829L212.64887700807594,345.46085437769216L211.501009245374,345.49043035333307L211.67819702158158,355.01778514765465L210.489266250559,355.0438678206265L210.53345571631507,357.4321130749595L207.04241811134852,357.53495248471154L206.98247674416052,359.9222016657295L202.3412003805861,360.0267953347284L202.19293038541218,357.3191833812598L192.71465912711574,357.5082418025486L191.79451690825226,310.10071333962696L217.5181399715948,309.54039697629196Z" class="cas" fill="#fbb4ae"></path><path d="M230.15872677386506,328.3641133529891L230.32735534515814,337.8914133323924L239.9669414908276,347.1972789887077L239.78945856563223,337.66719312960777L253.15048378542997,337.4907927855311L252.51186749732005,341.5820860974636L252.9713927272678,347.0098841010986L251.97675075219013,347.0179614623339L251.952654570312,351.8020249146357L250.72310837321857,351.81269941329083L249.69855529650522,356.5957992531694L252.2089051805815,358.97263346784894L249.5347796285787,359.0034883022163L249.1260763034952,361.40368969093106L249.73257075285073,361.3959647373049L249.83514226610714,366.17210095124756L206.56831170043733,367.06556107215147L206.4300552479399,359.9369480027308L206.98247674416052,359.9222016657295L207.04241811134852,357.53495248471154L210.53345571631507,357.4321130749595L210.489266250559,355.0438678206265L211.67819702158158,355.01778514765465L211.501009245374,345.49043035333307L212.64887700807594,345.46085437769216L212.640131824126,343.0745463959829L214.77803943942126,343.0186032457641L215.09089895963552,338.2516761813531L216.14971668958606,338.2331671629072L215.95990174695908,328.69454632809357L217.5305702014739,328.67126615958114L217.11295970760693,324.55215970618156L220.5982113628561,324.4701931815216L220.62676735232526,328.6011529183161Z" class="cas" fill="#fbb4ae"></path><path d="M214.32923192856833,128.4532965191829L215.43468820863927,129.3898709205896L215.2165371607116,132.73652144690277L216.49961044470547,136.3383684850487L215.83746689943655,137.43161936540127L216.16700782984844,140.32184977512225L217.73228499799734,140.94386509440665L216.60875547063188,141.77596895083843L217.5373347547138,143.62454551734845L218.35107912120293,143.1927101422334L217.14822723093675,143.90362311157514L218.10386322252452,145.63216799182555L218.72068109812972,145.314357722993L217.6459851420659,146.06995695679507L219.2337666733074,147.27853887898527L218.14997987283277,148.1337781641414L219.32647768476454,149.6644215434717L219.9251243914332,149.13803774763073L219.22155545650457,149.86021392105613L222.8535858513642,153.20420905131323L225.32062478852458,153.689670630396L225.67659866764734,152.13254003981274L224.9131752645335,151.8311176754505L225.5544833563472,151.83174413753295L225.73781256077928,152.1557217204172L225.73424777197943,152.96306782113243L225.54942762684368,153.48271083447617L225.1924454136606,153.89163216059387L218.91665124503197,156.47266762062645L189.8528930755856,157.08589298362494L188.10333041180274,151.9331253513301L185.67873709810374,150.00363518270024L183.0988890886947,150.65813234123198L182.35268018150236,147.99930820721784L178.87171180669975,142.31553676169278L174.89841747334867,141.29531539027812L172.85200238850666,139.21473521234293L172.18424816819606,136.23575892125518L167.525146468397,133.8628639735689L166.45051222476468,131.00382487777824L164.4595733658207,129.01714377677126Z" class="cas" fill="#b3cde3"></path><path d="M135.4253300676355,358.3757741340087L168.6170806089649,357.96161210592254L169.29908134962898,377.75742942663055L170.27782125632802,380.94245569957275L174.28880434390157,386.78032142326265L107.55078909128497,388.2614321619694L107.13212576674414,363.67645676581014L126.15138947973901,363.56831407714344L125.90659158230119,352.9613942913493Z" class="cas" fill="#decbe4"></path><path d="M206.4300552479399,359.9369480027308L207.1239156856027,376.5900756840274L209.77547219193366,376.4803443293349L210.29515003784036,375.6363142031187L212.09129835442582,376.50621050399786L212.4568249494041,395.68847832536267L201.82132819810067,395.88768202780193L201.26648092703545,394.40155331585265L198.5608315843565,395.8880484034962L199.9669079079904,390.87691931825975L181.51928001528722,391.454512757613L181.574278676213,393.8752731048735L178.85161643665924,393.9232181435509L169.6112676817138,379.0832720081162L168.6170806089649,357.96161210592254L202.19293038541218,357.3191833812598L202.2433035409631,360.0121087832813Z" class="cas" fill="#fbb4ae"></path><path d="M173.9979998296476,386.7772527612542L179.7015581970918,395.6912075156797L190.67541281534068,424.5835203552051L188.01455554251152,434.19488855478994L151.45405086755636,434.8533502503633L151.1496286434849,424.112979568461L155.9781246385828,424.03675888088765L155.77343637317244,415.70654212566296L165.43695754985674,415.58074535735796L164.77980759610364,386.9467901668395Z" class="cas" fill="#b3cde3"></path><path d="M212.4568249494041,395.68847832536267L213.04454740075744,424.2468474902198L203.56249596975977,424.41124555379065L203.7833212643891,433.93654246340157L188.01455554251152,434.19488855478994L190.67541281534068,424.5835203552051L178.85161643665924,393.9232181435509L181.574278676213,393.8752731048735L181.51928001528722,391.454512757613L199.9669079079904,390.87691931825975L198.5608315843565,395.8880484034962L201.26648092703545,394.40155331585265L201.82132819810067,395.88768202780193Z" class="cas" fill="#fbb4ae"></path><path d="M151.1496286434849,424.112979568461L151.82761795059196,449.0747076348198L148.20405281621788,449.2608591819153L148.27791290079767,451.5982653241954L147.0793458402768,451.6128032679553L147.14906995536876,454.0647570840956L142.39475606333872,454.16355615983775L142.52387327165343,458.8858697061296L136.5894372799521,459.06620471948554L136.44225142453797,454.2861884730519L109.13177771389019,454.8902641356908L108.84902388181945,445.43048069104407L127.8318239858927,444.8742711240193L127.04196070561011,416.2247289208608L135.39613727222604,416.05771335550526L135.447824505085,418.44547957077884L136.64685023885977,418.4226193809809L136.8173350574798,425.5153613136208L146.39438739951584,425.37852742477116L146.34565669125004,424.23500357189914Z" class="cas" fill="#b3cde3"></path><path d="M204.22899664497527,452.9924645900319L185.22207757586148,453.33506360861793L185.4504991875292,462.85700050592277L180.16641665626958,462.9964999168951L179.6343549911835,464.9261333834438L178.57057408110995,464.63147133003076L179.01380278775468,463.0233498311645L161.1721693440486,463.296696834499L161.64444627672492,453.78663764586963L151.96496093462338,453.9725758135028L151.68019121831458,444.42927339293965L156.4770679891517,443.5672640629855L156.2531825948099,434.79932002360147L203.7833212643891,433.93654246340157Z" class="cas" fill="#fbb4ae"></path><path d="M192.10566373731126,42.24361896778282L192.3480624074,55.07851091782504L195.6036918709142,58.6071508032328L196.66242622715072,59.00308866771229L197.19206307351124,57.72535209104535L195.89053642419458,61.93440763702529L196.09414665636723,66.84497791867034L197.9230827565625,68.97151565558306L199.20690487844695,69.09299233370257L195.3266325450386,70.78590606902435L172.70295393193373,71.25468650305993L172.11170236866747,42.47167125191481Z" class="cas" fill="#b3cde3"></path><path d="M43.34518698551983,38.730468516776455L43.286949043002096,45.892076300049666L39.85116960442974,45.85563258102775L39.83151045658451,43.61384447485034L29.020847560474067,43.97385545387078L29.178071170361363,24.893892491731094L30.668043676108937,24.85610508255195L30.33584903848532,19.35207379815256L29.200375647225883,19.389363892267284L29.22077685550903,15.309568451375526L43.551722897274885,14.885840800423466Z" class="cas" fill="#b3cde3"></path><circle cx="90.68623351684073" cy="205.63060559310543" r="5px" class="schools-not-repurposed"></circle><circle cx="220.19185801924323" cy="298.84627436419396" r="5px" class="schools-not-repurposed"></circle><circle cx="190.55657372972928" cy="317.41174947150284" r="5px" class="schools-not-repurposed"></circle><circle cx="280.16912000191223" cy="396.853756925113" r="5px" class="schools-not-repurposed"></circle><circle cx="267.7097654711979" cy="406.5913490030289" r="5px" class="schools-not-repurposed"></circle><circle cx="150.59058820467908" cy="199.80935004606727" r="5px" class="schools-not-repurposed"></circle><circle cx="254.74778301393962" cy="295.9080438835226" r="5px" class="schools-repurposed"></circle><circle cx="175.2334082876332" cy="95.05471384330303" r="5px" class="schools-not-repurposed"></circle><circle cx="161.90512131714786" cy="192.2938593866129" r="5px" class="schools-not-repurposed"></circle><circle cx="154.78133298830653" cy="193.77595396199467" r="5px" class="schools-repurposed"></circle><circle cx="228.47076212712273" cy="244.51385475123243" r="5px" class="schools-repurposed"></circle><circle cx="154.63858912786236" cy="162.4460683184443" r="5px" class="schools-repurposed"></circle><circle cx="179.11936898619751" cy="325.15474150333466" r="5px" class="schools-not-repurposed"></circle><circle cx="85.92091895703925" cy="197.0374886581776" r="5px" class="schools-not-repurposed"></circle><circle cx="242.82609453708574" cy="324.2154204030885" r="5px" class="schools-not-repurposed"></circle><circle cx="160.7756356712198" cy="251.82325416430103" r="5px" class="schools-not-repurposed"></circle><circle cx="126.63876186026027" cy="218.6398609332682" r="5px" class="schools-not-repurposed"></circle><circle cx="82.8087027277943" cy="184.92715438352025" r="5px" class="schools-not-repurposed"></circle><circle cx="158.73301606901805" cy="208.10630948156177" r="5px" class="schools-not-repurposed"></circle><circle cx="222.4152083977824" cy="427.1191459954789" r="5px" class="schools-not-repurposed"></circle><circle cx="152.70369190300698" cy="172.05566116840782" r="5px" class="schools-repurposed"></circle><circle cx="93.57155075017363" cy="205.58319372247206" r="5px" class="schools-repurposed"></circle><circle cx="109.27941168095276" cy="192.1892385369356" r="5px" class="schools-repurposed"></circle><circle cx="200.4985351607611" cy="338.4505670516228" r="5px" class="schools-not-repurposed"></circle><circle cx="117.90691726531077" cy="203.9576092388961" r="5px" class="schools-not-repurposed"></circle><circle cx="205.99805854882288" cy="379.1377861330475" r="5px" class="schools-not-repurposed"></circle><circle cx="185.52464269008487" cy="177.593475043308" r="5px" class="schools-repurposed"></circle><circle cx="225.1210652093141" cy="295.1368283961856" r="5px" class="schools-repurposed"></circle><circle cx="223.54128322799806" cy="475.43217507920053" r="5px" class="schools-repurposed"></circle><circle cx="130.75779615162173" cy="235.6192307325764" r="5px" class="schools-not-repurposed"></circle><circle cx="213.57682118591038" cy="300.2087416007562" r="5px" class="schools-not-repurposed"></circle><circle cx="183.25851356708154" cy="171.4340420117078" r="5px" class="schools-repurposed"></circle><circle cx="232.32889912259998" cy="252.43119106309314" r="5px" class="schools-not-repurposed"></circle><circle cx="144.81277833531203" cy="228.98432800914452" r="5px" class="schools-repurposed"></circle><circle cx="222.23558552443865" cy="322.7975914175986" r="5px" class="schools-not-repurposed"></circle><circle cx="220.87221732732723" cy="458.0844322445337" r="5px" class="schools-not-repurposed"></circle><circle cx="190.5960364456987" cy="86.56310343472433" r="5px" class="schools-repurposed"></circle><circle cx="177.29980983393034" cy="71.14692625196767" r="5px" class="schools-repurposed"></circle><circle cx="130.57043093671382" cy="184.54176901775645" r="5px" class="schools-not-repurposed"></circle><circle cx="198.3046005115175" cy="344.6007204405614" r="5px" class="schools-not-repurposed"></circle><circle cx="210.45822117174976" cy="463.3920027845961" r="5px" class="schools-not-repurposed"></circle><circle cx="192.02672130458814" cy="326.96934265813616" r="5px" class="schools-not-repurposed"></circle><circle cx="213.99822853169462" cy="346.21605073169485" r="5px" class="schools-not-repurposed"></circle></svg><div id="chatterbox" width="300">Following a trend in New York City, Philadelphia and elsewhere, black communities are most affected by public school closures. Three years after Chicago’s mass closures, black neighborhoods are still stuck with the most vacant schools, with Austin and West Englewood at the top of the list.</div><div id="sources"><hr>Race, education, home vacancy and poverty data compiled from 2014 American Community Survey 5-year data. Crime records reported by Chicago Police Department between September 2015 through August 2016.</div></div>
+</body></html>
